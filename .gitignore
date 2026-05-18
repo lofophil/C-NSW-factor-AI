@@ -67,7 +67,7 @@ secrets/
 logs/
 
 # ===== 结果（大文件选择性上传）=====
-results/figures/*.png
-results/figures/*.jpg
+# results/figures/*.png
+# results/figures/*.jpg
 # 保留报告 Markdown
 !results/reports/*.md
