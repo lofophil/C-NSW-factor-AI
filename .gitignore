@@ -1,0 +1,73 @@
+# ===== 数据文件（体积大，不上传 GitHub）=====
+data/raw/
+data/processed/
+
+# 允许占位文件保留（确保目录被 git 追踪）
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+
+# GeoTIFF 和遥感数据
+*.tif
+*.tiff
+*.nc
+*.h5
+*.hdf5
+*.zip
+*.safe/
+
+# ===== 模型权重（用 Git LFS 管理）=====
+models/*.pth
+models/*.pkl
+models/*.joblib
+models/*.h5
+# 保留占位文件
+!models/.gitkeep
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# ===== 虚拟环境 =====
+venv/
+env/
+.venv/
+ENV/
+
+# ===== Jupyter =====
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# ===== IDE =====
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*~
+
+# ===== 系统文件 =====
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ===== 密钥和配置（绝对不上传）=====
+.env
+*.pem
+*_key.json
+secrets/
+
+# ===== 日志 =====
+*.log
+logs/
+
+# ===== 结果（大文件选择性上传）=====
+results/figures/*.png
+results/figures/*.jpg
+# 保留报告 Markdown
+!results/reports/*.md
