@@ -17,34 +17,36 @@ region:
     lon_max: 149.0
     lat_min: -34.0
     lat_max: -32.5
-  crs: "EPSG:32755"   # UTM Zone 55S，NSW 常用投影
+  crs: "EPSG:32755" # UTM Zone 55S，NSW 常用投影
 
 # ---------- 时间范围 ----------
 time:
   start: "2019-01-01"
-  end:   "2023-12-31"
+  end: "2023-12-31"
   # 用于训练标签配对的月份列表（可选，留空表示全年）
   target_months: []
 
 # ---------- Sentinel-2 参数 ----------
 sentinel2:
-  collection: "ga_s2_ard_granule_nrt"   # DEA ARD 集合名
-  cloud_cover_max: 20                    # 最大云量百分比
+  # 数据源：Microsoft Planetary Computer（替代 DEA Sandbox）
+  stac_endpoint: "https://planetarycomputer.microsoft.com/api/stac/v1"
+  collection: "sentinel-2-l2a"
+  cloud_cover_max: 20
   bands:
-    - "nbart_blue"      # B2 10m
-    - "nbart_green"     # B3 10m
-    - "nbart_red"       # B4 10m
-    - "nbart_nir_1"     # B8 10m
-    - "nbart_nir_2"     # B8A 20m
-    - "nbart_swir_2"    # B11 20m
-  resolution: 10                        # 目标分辨率（米）
+    - "B02" # Blue  10m
+    - "B03" # Green 10m
+    - "B04" # Red   10m
+    - "B08" # NIR   10m
+    - "B8A" # NIR narrow 20m
+    - "B11" # SWIR  20m
+  resolution: 10
 
 # ---------- 衍生指数 ----------
 indices:
-  - NDVI    # (NIR - Red) / (NIR + Red) — 光合植被覆盖
-  - NDWI    # (Green - NIR) / (Green + NIR) — 土壤含水量
-  - BSI     # (SWIR + Red - NIR - Blue) / (SWIR + Red + NIR + Blue) — 裸土指数
-  - SAVI    # (NIR - Red) / (NIR + Red + L) * (1+L), L=0.5 — 土壤调整植被
+  - NDVI # (NIR - Red) / (NIR + Red) — 光合植被覆盖
+  - NDWI # (Green - NIR) / (Green + NIR) — 土壤含水量
+  - BSI # (SWIR + Red - NIR - Blue) / (SWIR + Red + NIR + Blue) — 裸土指数
+  - SAVI # (NIR - Red) / (NIR + Red + L) * (1+L), L=0.5 — 土壤调整植被
 
 # ---------- 标签数据 ----------
 labels:
@@ -57,11 +59,11 @@ labels:
 
 # ---------- 数据路径 ----------
 paths:
-  raw_data:       "data/raw"
+  raw_data: "data/raw"
   processed_data: "data/processed"
-  models:         "models"
-  figures:        "results/figures"
-  reports:        "results/reports"
+  models: "models"
+  figures: "results/figures"
+  reports: "results/reports"
 
 # ---------- 模型超参数 ----------
 model:
@@ -77,7 +79,7 @@ model:
   unet:
     encoder: "resnet34"
     encoder_weights: "imagenet"
-    in_channels: 9          # Sentinel-2 波段数 + 衍生指数数
+    in_channels: 9 # Sentinel-2 波段数 + 衍生指数数
     patch_size: 256
     batch_size: 16
     learning_rate: 0.0001
@@ -88,7 +90,7 @@ model:
 evaluation:
   test_split: 0.15
   val_split: 0.15
-  spatial_cv_folds: 5        # 空间交叉验证折数（避免空间自相关泄漏）
+  spatial_cv_folds: 5 # 空间交叉验证折数（避免空间自相关泄漏）
   metrics:
     - RMSE
     - MAE
