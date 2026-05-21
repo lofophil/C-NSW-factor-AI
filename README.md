@@ -1,129 +1,194 @@
-# NSW C-Factor AI — 新南威尔士州 RUSLE C 因子深度学习超分辨率
+# NSW C-Factor AI — Deep Learning-Based RUSLE C-Factor Downscaling for New South Wales
 
-## 项目简介
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![Data: CC BY 4.0](https://img.shields.io/badge/Data-CC%20BY%204.0-green.svg)](https://creativecommons.org/licenses/by/4.0/)
 
-利用 Sentinel-2 10m 遥感数据，通过物理约束深度学习方法，将新南威尔士州（NSW）
-RUSLE 土壤侵蚀方程中的植被覆盖管理因子（C 因子）从 MODIS 500m 分辨率提升至 10m 分辨率。
+## Overview
 
-**研究意义**
+This project applies deep learning (U-Net) to downscale the RUSLE Cover and Management Factor (C-factor) from MODIS 500m resolution to Sentinel-2 10m resolution across New South Wales (NSW), Australia. The model achieves **R² = 0.82** on the test dataset.
 
-| 指标 | 现有产品 | 本研究目标 |
-|------|---------|-----------|
-| 空间分辨率 | MODIS 500m | Sentinel-2 10m |
-| 时间分辨率 | 月度/年度 | 月度 |
-| 覆盖区域 | NSW 全州 | NSW 全州 |
-| 方法 | 经验公式 | 物理约束深度学习 |
+### Research Significance
 
----
-
-## 数据来源
-
-### 特征层（输入）
-- **Sentinel-2 ARD**：通过 [DEA Sandbox](https://sandbox.dea.ga.gov.au) 获取
-  - 波段：B2, B3, B4, B8, B8A, B11（10m/20m）
-  - 衍生指数：NDVI, NDWI, BSI, SAVI
-
-### 标签层（目标）
-- **RUSLE C 因子栅格**：[NSW SEED 平台](https://datasets.seed.nsw.gov.au/dataset/annual-hillslope-erosion-rulse-factors)
-- **月度裸土侵蚀量 GeoTIFF**：NSW SEED（2000 年至今）
-- **DEA 分数植被覆盖（Fractional Cover）**：30m Landsat，1986 年至今
-
-### 辅助层（协变量）
-- **BoM AWAP 降雨**：5km，用于推算时变 R 因子
-- **SRTM / Copernicus DEM**：30m，计算 LS 因子
-- **SLGA 土壤格网**：90m，K 因子辅助
-- **NSW 火灾范围图**：矢量，识别干扰事件
+| Item | Existing Product | This Study |
+|------|-----------------|------------|
+| Spatial Resolution | MODIS 500m | Sentinel-2 10m |
+| Temporal Resolution | Monthly | Monthly |
+| Coverage | NSW State-wide | NSW State-wide |
+| Method | Empirical formula | Physics-informed deep learning (U-Net) |
 
 ---
 
-## 项目结构
+## Citation
+
+If you use this method, code, or results in your research, please cite as follows:
 
 ```
-nsw-cfactor-ai/
+lofophil. (2026). NSW C-Factor AI: Deep Learning-Based RUSLE C-Factor Downscaling 
+for New South Wales Using Sentinel-2 10m Imagery. 
+GitHub Repository. https://github.com/lofophil/C-NSW-factor-AI
+```
+
+BibTeX format:
+```bibtex
+@misc{lofophil2026nswcfactor,
+  author    = {lofophil},
+  title     = {NSW C-Factor AI: Deep Learning-Based RUSLE C-Factor Downscaling 
+               for New South Wales Using Sentinel-2 10m Imagery},
+  year      = {2026},
+  publisher = {GitHub},
+  url       = {https://github.com/lofophil/C-NSW-factor-AI}
+}
+```
+
+---
+
+## Data Sources
+
+### Feature Layer (Input)
+- **Sentinel-2 L2A ARD**: Accessed via [Microsoft Planetary Computer](https://planetarycomputer.microsoft.com/) STAC API
+  - Bands: B02 (Blue), B03 (Green), B04 (Red), B08 (NIR), B11 (SWIR)
+  - Derived indices: NDVI, NDWI, BSI, SAVI
+  - Resolution: 10m
+  - Time: April 2024
+
+### Label Layer (Target)
+- **Monthly C-Factor Raster**: [NSW SEED Platform](https://datasets.seed.nsw.gov.au/dataset/annual-hillslope-erosion-rulse-factors)
+  - Dataset: 2021–2030 Monthly Cover and Management (C-factor)
+  - Original resolution: ~500m (MODIS-derived)
+  - Time: April 2024 (c_202404.tif)
+  - License: CC BY 4.0
+
+---
+
+## Complete Training Workflow
+
+### Stage 1 — Environment Setup
+- Python 3.11 (conda environment: `cfactor`)
+- PyTorch 2.5.1 + CUDA 12.1 (NVIDIA RTX 3090)
+- Key packages: rasterio, geopandas, stackstac, pystac-client, segmentation-models-pytorch
+
+### Stage 2 — Data Acquisition (`notebooks/02_feature_engineering.ipynb`)
+- Connected to Microsoft Planetary Computer STAC API
+- Searched Sentinel-2 L2A scenes for April 2024 (cloud cover < 5%)
+- Selected top 3 dates by scene count for maximum spatial coverage
+- Applied maximum-NDVI monthly compositing across dates
+- Computed NDVI, NDWI, BSI, SAVI indices
+- Output: Feature matrix `(16811, 18790, 7)` — 7 channels at 10m resolution
+
+### Stage 3 — Label Preparation (`notebooks/03_label_preparation.ipynb`)
+- Downloaded monthly C-factor GeoTIFF (c_202404.tif) from NSW SEED
+- Clipped to study area bounding box
+- Reprojected from EPSG:4326 to EPSG:32755 (UTM Zone 55S)
+- Bilinear resampling to match Sentinel-2 10m grid
+- Output: Label array `(16811, 18790)` — C-factor values in [0, 1]
+
+### Stage 4 — Model Training (`notebooks/07_model_training_cfactor.ipynb`)
+Four models were trained and compared:
+
+| Model | RMSE | MAE | R² |
+|-------|------|-----|-----|
+| Random Forest | 0.0084 | 0.0040 | 0.5975 |
+| XGBoost | 0.0088 | 0.0040 | 0.5519 |
+| 2D CNN (5-layer + residual) | 0.0104 | 0.0041 | 0.4307 |
+| **U-Net (resnet34)** | **0.0058** | **0.0024** | **0.8229** |
+
+**Training configuration (U-Net):**
+- Encoder: ResNet-34
+- Patch size: 256×256 pixels
+- Number of patches: 20,000
+- Batch size: 32
+- Epochs: 100
+- Optimizer: Adam (lr=1e-4, weight_decay=1e-5)
+- Scheduler: CosineAnnealingLR
+- Loss function: MSELoss + early stopping
+- Training time: ~1.8 hours on RTX 3090
+
+### Stage 5 — NSW State-wide Prediction (`notebooks/08_nsw_prediction.ipynb`)
+- Divided NSW into 10 spatial tiles (approx. 350km × 350km each)
+- For each tile: downloaded Sentinel-2 → extracted features → predicted C-factor → saved GeoTIFF
+- Merged all tiles into final state-wide mosaic
+- Output: `NSW_cfactor_2024_04_10m.tif` (28 GB, BigTIFF format)
+  - Full extent: 105,703 × 120,464 pixels
+  - Coverage: Eastern NSW (144°E–154°E, 37.5°S–28°S)
+
+---
+
+## Limitations
+
+1. **Computational constraints**: The RTX 3090 GPU (24GB VRAM) limits the model architecture and batch size. Larger encoders (e.g., EfficientNet-B7) cause GPU memory overflow during state-wide prediction.
+
+2. **Western NSW coverage**: Tiles covering western NSW (141°E–144°E) have very limited Sentinel-2 coverage due to the arid/semi-arid landscape with few cloud-free scenes. The final prediction currently covers **eastern NSW only**.
+
+3. **Temporal mismatch risk**: All features and labels are from April 2024. The model may not generalise well to other months without retraining on multi-temporal data.
+
+4. **Label resolution**: The C-factor labels are derived from MODIS 500m products. The 10m output represents a spatial downscaling based on Sentinel-2 spectral features, not independent 10m ground truth validation.
+
+5. **Training area**: The model was trained on a pilot study area (147°E–149°E, 34°S–32.5°S) in western Sydney agricultural region. Generalisation to the full state may introduce regional biases.
+
+---
+
+## Repository Structure
+
+```
+C-NSW-factor-AI/
 ├── README.md
 ├── requirements.txt
+├── requirements_cfactor.txt
 ├── .gitignore
 ├── configs/
-│   └── config.yaml          # 区域范围、时间范围、超参数
-├── data/
-│   ├── raw/                  # 原始下载（已加入 .gitignore）
-│   └── processed/            # 处理后数据（已加入 .gitignore）
+│   └── config.yaml
 ├── notebooks/
-│   ├── 01_data_download.ipynb
 │   ├── 02_feature_engineering.ipynb
 │   ├── 03_label_preparation.ipynb
-│   ├── 04_model_training.ipynb
-│   └── 05_evaluation.ipynb
+│   ├── 06_cfactor_label.ipynb
+│   ├── 07_model_training_cfactor.ipynb
+│   └── 08_nsw_prediction.ipynb
 ├── src/
 │   ├── __init__.py
-│   ├── data_utils.py        # 数据下载与加载工具
-│   ├── indices.py           # 遥感指数计算
-│   ├── preprocessing.py     # 预处理流水线
-│   ├── model.py             # 模型定义
-│   ├── train.py             # 训练脚本
-│   └── metrics.py           # 评估指标
-├── models/                   # 训练权重（用 Git LFS）
+│   ├── data_utils.py
+│   ├── indices.py
+│   └── metrics.py
+├── models/
+│   └── unet_cfactor_2024_04.pth
 └── results/
-    ├── figures/             # 可视化输出
-    └── reports/             # 精度评估报告
+    └── figures/
+        ├── NSW_cfactor_vs_ndvi_2024_04.png
+        ├── model_comparison_cfactor_2024_04.png
+        └── NSW_cfactor_2024_04_fullstate.png
 ```
 
 ---
 
-## 快速开始
+## Quick Start
 
-### 1. 克隆仓库
-
+### 1. Clone Repository
 ```bash
-git clone https://github.com/YOUR_USERNAME/nsw-cfactor-ai.git
-cd nsw-cfactor-ai
+git clone https://github.com/lofophil/C-NSW-factor-AI.git
+cd C-NSW-factor-AI
 ```
 
-### 2. 创建虚拟环境
-
+### 2. Create Environment
 ```bash
-python -m venv venv
-# Windows
-venv\Scripts\activate
-# macOS/Linux
-source venv/bin/activate
-```
-
-### 3. 安装依赖
-
-```bash
+conda create -n cfactor python=3.11 -y
+conda activate cfactor
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
 pip install -r requirements.txt
 ```
 
-### 4. 配置研究区域
-
-编辑 `configs/config.yaml`，设置 NSW 研究区范围和时间段。
-
-### 5. 运行数据下载笔记本
-
-```bash
-jupyter lab notebooks/01_data_download.ipynb
+### 3. Run Notebooks in Order
+```
+02_feature_engineering.ipynb   → Download Sentinel-2, compute indices
+03_label_preparation.ipynb     → Download and reproject C-factor label
+06_cfactor_label.ipynb         → Verify label data
+07_model_training_cfactor.ipynb → Train and compare 4 models
+08_nsw_prediction.ipynb        → State-wide prediction and mosaic
 ```
 
 ---
 
-## 研究阶段
+## License
 
-- [x] 阶段 1：项目骨架与 GitHub 初始化
-- [ ] 阶段 2：数据获取（Sentinel-2 + RUSLE 标签）
-- [ ] 阶段 3：特征工程与标签对齐
-- [ ] 阶段 4：模型训练（基线 RF → CNN/U-Net）
-- [ ] 阶段 5：精度评估与产品输出
+- **Code**: Apache License 2.0
+- **Data**: Subject to source licenses (NSW SEED CC BY 4.0; Sentinel-2 via Planetary Computer Terms of Use)
 
----
-
-## 专利状态
-
-本研究方法已/将向 IP Australia 提交临时专利申请。
-发明名称：**用于 NSW 地表侵蚀遥感监测的物理约束深度学习方法及系统**
-
----
-
-## 许可证
-
-代码：Apache 2.0 | 数据：遵循各来源协议（DEA CC BY 4.0，NSW SEED CC BY 4.0）
+© 2026 lofophil. Open for academic and research use. Please cite this repository if you use the code or methodology.
